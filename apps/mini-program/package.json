@@ -10,8 +10,12 @@
     "dev:h5": "taro build --type h5 --watch",
     "lint": "echo \"@any-door/mini-program: linter todo\""
   },
-  "browserslist": ["defaults and fully supports es6-module", "maintained node versions"],
+  "browserslist": [
+    "defaults and fully supports es6-module",
+    "maintained node versions"
+  ],
   "dependencies": {
+    "@any-door/shared": "workspace:^",
     "@babel/runtime": "^7.24.4",
     "@tarojs/components": "4.2.0",
     "@tarojs/helper": "4.2.0",
@@ -22,6 +26,7 @@
     "@tarojs/runtime": "4.2.0",
     "@tarojs/shared": "4.2.0",
     "@tarojs/taro": "4.2.0",
+    "marked": "^18.0.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

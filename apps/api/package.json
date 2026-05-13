@@ -9,8 +9,12 @@
     "lint": "echo \"@any-door/api: eslint todo\""
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.63",
     "@hono/node-server": "^1.19.7",
-    "hono": "^4.11.4"
+    "ai": "^6.0.180",
+    "dotenv": "^17.4.2",
+    "hono": "^4.11.4",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^22.19.3",
