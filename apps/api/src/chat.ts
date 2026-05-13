@@ -1,7 +1,9 @@
 import type { Context } from "hono"
-import { generateText, streamText, type ModelMessage } from "ai"
-import { createOpenAI } from "@ai-sdk/openai"
+import type { ModelMessage } from "ai"
 import { z } from "zod"
+import { generateOpenAIText, streamOpenAI } from "./llm/openai-provider"
+import { generateCursorText, streamCursor } from "./llm/cursor-provider"
+import { describeCredentialHints, resolveLlmBackend } from "./llm/provider"
 
 const MessageSchema = z.object({
   role: z.enum(["user", "assistant", "system"]),
@@ -28,17 +30,21 @@ function buildMessages(body: z.infer<typeof BodySchema>): ModelMessage[] {
   return [sys, ...(body.messages as ModelMessage[])]
 }
 
-function createModel() {
-  const apiKey = process.env.OPENAI_API_KEY?.trim()
-  if (!apiKey) {
-    throw new Error("missing_openai_api_key")
+function requireBackend(c: Context) {
+  const backend = resolveLlmBackend()
+  if (!backend) {
+    return c.json(
+      { error: "server_config", detail: "Set CURSOR_API_KEY and/or OPENAI_API_KEY (optional LLM_PROVIDER=cursor|openai)" },
+      503,
+    )
   }
-  const openai = createOpenAI({
-    apiKey,
-    baseURL: process.env.OPENAI_BASE_URL?.trim() || undefined,
-  })
-  const modelId = process.env.OPENAI_MODEL?.trim() || "gpt-4o-mini"
-  return openai(modelId)
+  if (backend === "cursor" && !process.env.CURSOR_API_KEY?.trim()) {
+    return c.json({ error: "server_config", detail: "LLM_PROVIDER=cursor (or auto) requires CURSOR_API_KEY" }, 503)
+  }
+  if (backend === "openai" && !process.env.OPENAI_API_KEY?.trim()) {
+    return c.json({ error: "server_config", detail: "LLM_PROVIDER=openai (or auto) requires OPENAI_API_KEY" }, 503)
+  }
+  return backend
 }
 
 export async function handleChatStream(c: Context) {
@@ -49,25 +55,17 @@ export async function handleChatStream(c: Context) {
     return c.json({ error: "invalid_body", detail: "Expected { messages: [{ role, content }] }" }, 400)
   }
 
-  let model
-  try {
-    model = createModel()
-  } catch {
-    return c.json({ error: "server_config", detail: "OPENAI_API_KEY is not set on the server" }, 503)
-  }
+  const backend = requireBackend(c)
+  if (backend instanceof Response) return backend
+
+  const coreMessages = buildMessages(parsed)
+  const signal = c.req.raw.signal
 
   try {
-    const coreMessages = buildMessages(parsed)
-    const result = streamText({
-      model,
-      messages: coreMessages,
-    })
-    return result.toTextStreamResponse({
-      headers: {
-        "Cache-Control": "no-cache",
-        "X-Content-Type-Options": "nosniff",
-      },
-    })
+    if (backend === "cursor") {
+      return await streamCursor(coreMessages, signal)
+    }
+    return streamOpenAI(coreMessages, signal)
   } catch (e) {
     const msg = e instanceof Error ? e.message : "stream_failed"
     return c.json({ error: "upstream", detail: msg }, 502)
@@ -82,20 +80,16 @@ export async function handleChatComplete(c: Context) {
     return c.json({ error: "invalid_body", detail: "Expected { messages: [{ role, content }] }" }, 400)
   }
 
-  let model
-  try {
-    model = createModel()
-  } catch {
-    return c.json({ error: "server_config", detail: "OPENAI_API_KEY is not set on the server" }, 503)
-  }
+  const backend = requireBackend(c)
+  if (backend instanceof Response) return backend
+
+  const coreMessages = buildMessages(parsed)
+  const signal = c.req.raw.signal
 
   try {
-    const coreMessages = buildMessages(parsed)
-    const result = await generateText({
-      model,
-      messages: coreMessages,
-    })
-    return c.json({ reply: result.text })
+    const text =
+      backend === "cursor" ? await generateCursorText(coreMessages, signal) : await generateOpenAIText(coreMessages, signal)
+    return c.json({ reply: text })
   } catch (e) {
     const msg = e instanceof Error ? e.message : "generate_failed"
     return c.json({ error: "upstream", detail: msg }, 502)

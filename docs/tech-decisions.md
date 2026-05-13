@@ -53,28 +53,16 @@
 
 ---
 
-## 5. AI SDK（未定稿 — 占位说明）
+## 5. 模型接入（Cursor SDK + Vercel AI SDK 并存）
 
-首期产品与技术上明确：**服务端需要提供对流式对话友好的封装**，但 **尚未锁定某一 AI SDK 或单一模型供应商**。
+服务端 **`POST /v1/chat/stream` / `/v1/chat`** 支持两套后端，对外均为 **`text/plain` 分块文本流**（小程序侧解析方式不变）：
 
-### 选型时可考虑的维度
+| 后端 | 典型用途 |
+|------|-----------|
+| **Vercel AI SDK**（`ai` + `@ai-sdk/openai`） | OpenAI 兼容网关；**Vercel Serverless** 友好 |
+| **Cursor SDK**（`@cursor/sdk`） | Cursor Agent **本地**运行时（`local` + 工作目录）；HTTP 无状态下将 `messages` **折叠为 transcript** 单次 `send` |
 
-| 维度 | 说明 |
-|------|------|
-| 多厂商 / 可替换 | 是否便于在同一抽象下切换 OpenAI 兼容网关、国产厂商或其它提供者 |
-| 流式输出 | 与 SSE / chunked HTTP、ReadableStream 的契合度 |
-| 运行环境与网络 | 在 **Vercel Serverless** 下的超时、`fetch` 可用性及是否需要自定义 HTTPS Agent |
-| 工具调用预留 | 若二期要做 Agent / 函数调用，SDK 是否自然支持或可外挂 |
-
-### 候选示例（非承诺）
-
-文档用途：**示例列举**，不构成已定选型：
-
-- **Vercel AI SDK**（`ai` 及 `@ai-sdk/*` 生态）
-- 各厂商 **官方 Node SDK**
-- **直连兼容 OpenAI 的 HTTPS API**（在自建封装的前提下）
-
-最终选型建议在首期 **`POST /v1/chat` 流式通路打通前后** 结合计费、合规与观测一并敲定。
+环境与 **`LLM_PROVIDER`** 详见仓库根 **[README](../README.md)**。**注意**：`@cursor/sdk` 携带本地运行时与原生依赖，**不一定能在 Vercel Serverless 上可靠构建或运行**；线上默认推荐 OpenAI 路径。
 
 ---
 
@@ -88,4 +76,4 @@
 
 ## 文档维护
 
-若变更托管形态、锁定 AI SDK 或纳入 LangGraph/RAG，请在本文件追加 **修订日期 + 变更摘要**，保持单一事实来源。
+若变更托管形态、模型后端组合或纳入 LangGraph/RAG，请在本文件追加 **修订日期 + 变更摘要**，保持单一事实来源。
